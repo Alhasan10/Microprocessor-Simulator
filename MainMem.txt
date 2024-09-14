@@ -1,0 +1,40 @@
+module MainMemory (
+  clk,        // Clock signal
+  read,       // Read control signal
+  write,      // Write control signal
+  address,    // Memory address
+  data_in,    // Data input
+  data_out   // Data output
+);
+
+input clk, read, write;
+input [10:0] address;
+input [15:0] data_in;
+
+output reg signed [15:0] data_out;
+
+  reg [15:0] memory [0:2047];    // Memory array with 2048 cells
+ initial begin
+	// program
+memory[0] = 16'h180A;
+memory[1] = 16'h580B;
+memory[2] = 16'h3005;
+memory[3] = 16'h280c;
+
+	// data at byte address
+memory[10] = 16'd9;
+memory[11] = 16'd12;
+memory[12] = 16'd0;   
+end
+
+  always @(posedge clk) begin
+  
+   if (read)
+    
+      data_out <= memory[address];
+   else if (write)
+   memory[address] <= data_in;
+ 
+  end
+
+endmodule

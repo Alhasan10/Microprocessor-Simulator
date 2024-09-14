@@ -1,0 +1,234 @@
+module CPU (clock, data_in_c, PC, IR, MBR, AC, MAR, carray, zero, over_flow, negative, read, write);
+
+  // Inputs
+input clock;
+input signed [15:0] data_in_c;
+
+  //Outputs
+output PC, IR, MBR, AC, MAR,carray,over_flow,zero,negative,read,write;
+
+reg signed [15:0] IR, MBR,AC;
+reg signed [10:0] PC, MAR;
+
+reg signed [2:0] state;
+reg carray;                   //flag
+reg zero;                    //flag
+reg over_flow;              //flag
+reg negative ;             //flag
+
+reg [15:0] res; 
+reg read ;
+reg write;
+reg mulreg;
+
+parameter load = 4'b0001, store = 4'b0010, add = 4'b0011 ,sub =4'b0100 , mul = 4'b0101 , div = 4'b0110 , bran = 4'b0111 , BRZ = 4'b1000;
+
+// set the program counter to the start of the program
+initial 
+begin 
+PC = 0;
+AC=0;
+state = 0;
+end
+
+always @(posedge clock) begin
+case(state)
+
+0: begin
+		MAR <= PC;
+		carray <= 0;
+		zero <= 0;
+		over_flow <= 0;
+		negative <= 0;
+		read <= 0;
+		write <= 0;
+		
+		state <= 1;
+		end
+		
+1: begin // fetch the instruction
+	IR <= data_in_c[MAR];
+	PC <= PC + 1;
+	read <= 1;
+	
+	state <= 2; // next state
+	end
+	
+2: begin
+    state <= 3;
+   end	
+	
+3: begin // Instruction decode
+	MAR <= IR[11:0];
+	state <= 4;
+	end
+	
+4: begin // Operand fetch
+	
+	if (IR[11] == 1)
+	begin
+	if(IR[15:12] == store ) MBR <= AC;
+	else MBR <= data_in_c[MAR];
+	end
+	else if(IR[11] == 0) 
+	begin 
+	if(IR[15:12] == store ) MBR <= AC;
+	else MBR <= {IR[10],IR[10],IR[10],IR[10],IR[10],IR[10:0]};
+	end 
+		state <= 5;
+	end
+	
+	
+	
+5: begin // execute
+	
+	//LOAD
+	if(IR[15:12] == load)
+		begin
+		
+		if (AC[15] == 1)
+		begin
+		negative <= 1;
+		end
+		
+		AC <= MBR;
+		if (IR[10:0] == 0) begin
+		zero <= 1; end
+		else begin
+		zero <= 0; end
+		
+		state <= 0;
+		end
+	
+	//ADD	
+	else if(IR[15:12] == add)
+		begin
+		
+		if (IR[10:0] == 0) begin
+		zero <= 1; end
+		else begin
+		zero = 0; end
+		
+		{carray,res} <= AC + MBR;
+		
+		if (carray != AC[15]) begin
+		over_flow <= 1; end
+		
+		if (over_flow != 1 && AC[15] == 1) begin
+		negative <= 1; end
+		 
+		if (AC == 0) begin 
+		zero <= 1; end
+		else begin
+		zero <= 0; end 
+		
+		state <= 0;
+		end
+	
+	//SUB	
+	else if(IR[15:12] == sub)
+		begin
+		
+		if (IR[10:0] == 0) begin
+		zero <= 1; end
+		else begin
+		zero = 0; end
+		
+		{carray,res} <= AC - MBR;
+		
+		if (carray != AC[15]) begin
+		over_flow <= 1; end
+		
+		if (over_flow != 1 && AC[15] == 1) begin
+		negative <= 1; end
+		
+		if (AC == 0) begin 
+		zero <= 1; end
+		else begin
+		zero <= 0; end
+		
+		state <= 0;
+		end
+	
+	//STORE
+	else if(IR[15:12] == store)
+		begin
+
+		MBR <= AC;
+		res[MAR] <= MBR;
+				
+		state <= 0;
+		end
+	
+	//MUL
+	else if (IR[15:12] == mul)
+		begin
+		
+		if (IR[10:0] == 0) begin
+		zero <= 1; end
+		
+		else begin
+		zero = 0; end
+		
+		{mulreg,AC} <= AC * MBR;
+		
+		if (mulreg == 0 || mulreg == 16'b1111111111111111) begin
+		over_flow <= 0; end
+		
+		else begin
+		over_flow <= 1; end
+		
+		if (AC[15] == 1) begin
+		negative <= 1; end
+		
+	if (AC == 0) begin 
+		zero <= 1; end
+		
+		
+		else begin
+		zero <= 0; end
+		
+		AC <= res;
+		
+		state <= 0;
+		end
+	
+	//DIV
+	else if (IR[15:12] == div)
+		begin
+		AC <= AC / MBR;
+		
+		if (AC[15] == 1) begin
+		negative <= 1; end
+		
+		if(AC == 0) begin
+		zero <= 1; end
+		
+		else begin
+		zero <= 0; end 
+		
+		state <= 0;
+		end
+	
+	//BRANCH
+	else if (IR[15:12] == bran)
+		begin
+		PC <= MAR;  // PC <= MBR; 
+		
+		state <= 0;
+		end
+	
+	//BRZ* 
+	else if (IR[15:12] == BRZ)
+		begin
+		
+		if(zero == 0) begin
+		PC <= MAR; end   // PC <= MBR;
+		
+		state <=0;
+
+		end
+	end
+endcase
+end
+endmodule
